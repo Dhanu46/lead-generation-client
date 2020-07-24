@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 import Peer from "simple-peer";
 import styled from "styled-components";
+import * as faceapi from "face-api.js";
 import "./Room.css";
 
 const Container = styled.div`
@@ -30,7 +31,7 @@ const Video = (props) => {
     props.peer.on("stream", (stream) => {
       ref.current.srcObject = stream;
     });
-  }, []);
+  }, [props.peer]);
 
   return <StyledVideo playsInline autoPlay muted ref={ref} className="Video" />;
 };
@@ -39,15 +40,27 @@ const videoConstraints = {
   height: window.innerHeight / 2,
   width: window.innerWidth / 2,
 };
-
+const models = process.env.PUBLIC_URL + "models";
 const Room = (props) => {
   const [peers, setPeers] = useState([]);
   const socketRef = useRef();
   const userVideo = useRef();
   const peersRef = useRef([]);
   const roomID = props.match.params.roomID;
-
   useEffect(() => {
+    async function faceDetection() {
+      try {
+        console.log("models loaded");
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(models),
+          faceapi.nets.faceLandmark68Net.loadFromUri(models),
+          faceapi.nets.faceRecognitionNet.loadFromUri(models),
+        ]);
+      } catch (ex) {
+        console.log("something error occured", ex);
+      }
+    }
+    faceDetection();
     socketRef.current = io.connect("/");
     navigator.mediaDevices
       .getUserMedia({ video: videoConstraints, audio: true })
@@ -81,7 +94,7 @@ const Room = (props) => {
           item.peer.signal(payload.signal);
         });
       });
-  }, []);
+  }, [roomID]);
 
   function createPeer(userToSignal, callerID, stream) {
     const peer = new Peer({
@@ -99,6 +112,23 @@ const Room = (props) => {
     });
 
     return peer;
+  }
+
+  function drawFace() {
+    console.log("detecting Face");
+    const canvas = faceapi.createCanvasFromMedia(Video);
+    document.body.append(canvas);
+    const displaySize = { width: Video.width, height: Video.height };
+    faceapi.matchDimensions(canvas, displaySize);
+    setInterval(async () => {
+      const detections = await faceapi
+        .detectAllFaces(Video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceExpressions();
+      const resizedDetections = faceapi.resizeResults(detections, displaySize);
+      canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+      faceapi.draw.drawDetections(canvas, resizedDetections);
+    }, 100);
   }
 
   function addPeer(incomingSignal, callerID, stream) {
@@ -119,7 +149,13 @@ const Room = (props) => {
 
   return (
     <Container>
-      <StyledVideoUser ref={userVideo} muted autoPlay playsInline />
+      <StyledVideoUser
+        onPlay={drawFace}
+        ref={userVideo}
+        muted
+        autoPlay
+        playsInline
+      />
       {peers.map((peer, index) => {
         return <Video key={index} peer={peer} />;
       })}
