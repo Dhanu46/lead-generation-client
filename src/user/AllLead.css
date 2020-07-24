@@ -1,0 +1,16 @@
+.border-line {
+    border: 2px solid green;
+}
+
+#Lead-List-Item:hover {
+    color: white!important;
+    background-color: rgba(0, 0, 0, 0.671)!important;
+    z-index: 11;
+}
+
+#Lead-List-Item {
+    z-index: 10;
+    -webkit-box-shadow: 10px 10px 5px 0px rgba(63,63,63,0.75);
+    -moz-box-shadow: 10px 10px 5px 0px rgba(63, 63, 63, 0.75);
+    box-shadow: 10px 10px 5px 0px rgba(63, 63, 63, 0.75);   
+}
